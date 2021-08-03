@@ -319,7 +319,7 @@ tls_config() {
 			echo
 			echo
 			echo -e "$yellow V2Ray port = $cyan$v2ray_port$none"
-			echo "------------------------------------------------ ----------------"
+			echo "-----------------------------------------------------------------"
 			echo
 			break
 			;;
@@ -337,7 +337,7 @@ tls_config() {
 		echo
 		echo
 		echo -e "$yellow your domain name = $cyan$domain$none"
-		echo "------------------------------------------------ ----------------"
+		echo "-----------------------------------------------------------------"
 		break
 	done
 	get_ip
@@ -352,7 +352,7 @@ tls_config() {
 	echo
 
 	while :; do
-		read -p "$(echo -e "(Is it parsed correctly: [${magenta}Y$none]):") "record
+		read -p "$(echo -e "(Is it parsed correctly: [${magenta}Y$none]):") " record
 		if [[ -z "$record" ]]; then
 			error
 		else
@@ -396,7 +396,7 @@ auto_tls_config() {
 	echo
 
 	while :; do
-		read -p "$(echo -e "(Whether to automatically configure TLS: [${magenta}Y/N$none]):") "auto_install_caddy
+		read -p "$(echo -e "(Whether to automatically configure TLS: [${magenta}Y/N$none]):") " auto_install_caddy
 		if [[ -z "$auto_install_caddy" ]]; then
 			error
 		else
