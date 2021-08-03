@@ -170,7 +170,7 @@ v2ray_config() {
 		echo "Remark 2: [utp | srtp | wechat-video | dtls | wireguard] disguised as [BT download | video call | WeChat video call | DTLS 1.2 packet | WireGuard packet]"
 		echo
 		read -p "$(echo -e "(default protocol: ${cyan}TCP$none)"):" v2ray_transport
-		[ -z "$v2ray_transport"] && v2ray_transport=1
+		[ -z "$v2ray_transport" ] && v2ray_transport=1
 		case $v2ray_transport in
 		[1-9] | [1-2][0-9] | 3[0-3])
 			echo
