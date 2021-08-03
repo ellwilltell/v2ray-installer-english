@@ -331,7 +331,7 @@ tls_config() {
 
 	while :; do
 		echo
-		echo -e "Please enter a ${magenta} correct domain name ${none}, it must be correct, no! Yes! Out! Wrong!"
+		echo -e "Please enter a ${magenta} correct domain name ${none}, it must be correct, and resolves to this machine!"
 		read -p "(for example: 233blog.com): " domain
 		[-z "$domain"] && error && continue
 		echo
@@ -453,9 +453,9 @@ path_config_ask() {
 path_config() {
 	echo
 	while :; do
-		echo -e "Please enter the path $none that you want $magenta to use for diversion, for example /movies, then you only need to enter movies"
+		echo -e "Please enter the path $none that you want $magenta to use for diversion, for example if the path is /movies, then you only need to enter movies"
 		read -p "$(echo -e "(default: [${cyan}movies$none]):")" path
-		[[ -z $path ]] && path="233blog"
+		[[ -z $path ]] && path="movies"
 
 		case $path in
 		*[/$]*)
