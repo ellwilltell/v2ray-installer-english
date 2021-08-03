@@ -308,16 +308,16 @@ showInstallStatus() {
 	if [[ -n "${coreInstallType}" ]]; then
 		if [[ "${coreInstallType}" == 1 ]]; then
 			if [[ -n $(pgrep -f xray/xray) ]]; then
-				echoContent yellow "\N core: xray-core[Run in operation]"
+				echoContent yellow "\n core: xray-core[Run in operation]"
 			else
-				echoContent yellow "\N core: xray-core[Not running]"
+				echoContent yellow "\n core: xray-core[Not running]"
 			fi
 
 		elif [[ "${coreInstallType}" == 2 || "${coreInstallType}" == 3 ]]; then
 			if [[ -n $(pgrep -f v2ray/v2ray) ]]; then
-				echoContent yellow "\N core: v2ray-core[Run in operation]"
+				echoContent yellow "\n core: v2ray-core[Run in operation]"
 			else
-				echoContent yellow "\N core: v2ray-core[Not running]"
+				echoContent yellow "\n core: v2ray-core[Not running]"
 			fi
 		fi
 		# Read protocol type
@@ -405,7 +405,7 @@ mkdirTools() {
 # Installation kit
 installTools() {
 	echo 'Installation tool'
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Installation tool"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Installation tool"
 	# Repair Ubuntu Individual System Issues
 	if [[ "${release}" == "ubuntu" ]]; then
 		dpkg --configure -a
@@ -632,7 +632,7 @@ installWarp(){
 # Initialization Nginx application certificate configuration
 initTLSNginxConfig() {
 	handleNginx stop
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Initialization Nginx application certificate configuration"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Initialization Nginx application certificate configuration"
 	if [[ -n "${currentHost}" ]]; then
 		echo
 		read -r -p "Read it to the last installation record, whether the domain name when the last installation is used ？[y/n]:" historyDomainStatus
@@ -844,7 +844,7 @@ checkIP() {
 }
 # Install TLS
 installTLS() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Apply for a TLS certificate\n"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Apply for a TLS certificate\n"
 	local tlsDomain=${domain}
 	# Install TLS
 	if [[ -f "/etc/v2ray-agent/tls/${tlsDomain}.crt" && -f "/etc/v2ray-agent/tls/${tlsDomain}.key" && -n $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]] || [[ -d "$HOME/.acme.sh/${tlsDomain}_ecc" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.key" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.cer" ]]; then
@@ -894,7 +894,7 @@ installTLS() {
 }
 # Configure a camouflage blog
 initNginxConfig() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Configuring nginx"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Configuring nginx"
 
 	cat <<EOF >/etc/nginx/conf.d/alone.conf
 server {
@@ -910,7 +910,7 @@ EOF
 
 # customize/Random path
 randomPathFunction() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Generate a random path"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Generate a random path"
 
 	if [[ -n "${currentPath}" ]]; then
 		echo
@@ -939,7 +939,7 @@ randomPathFunction() {
 }
 # Nginx camouflage blog
 nginxBlog() {
-	echoContent skyBlue "\N progress $1/${totalProgress} : Add a camouflage site"
+	echoContent skyBlue "\n progress $1/${totalProgress} : Add a camouflage site"
 	if [[ -d "/usr/share/nginx/html" && -f "/usr/share/nginx/html/check" ]]; then
 		echo
 		read -r -p "Detecting the installation camouflage site, do you need to reinstall?[y/n]：" nginxBlogInstallStatus
@@ -983,7 +983,7 @@ handleNginx() {
 
 # Timed task update TLS certificate
 installCronTLS() {
-	echoContent skyBlue "\N progress $1/${totalProgress} : Add tls certificate"
+	echoContent skyBlue "\n progress $1/${totalProgress} : Add tls certificate"
 	crontab -l >/etc/v2ray-agent/backup_crontab.cron
 	local historyCrontab=$(sed '/v2ray-agent/d;/acme.sh/d' /etc/v2ray-agent/backup_crontab.cron)
 	echo "${historyCrontab}" >/etc/v2ray-agent/backup_crontab.cron
@@ -994,7 +994,7 @@ installCronTLS() {
 
 # Update certificate
 renewalTLS() {
-	echoContent skyBlue "\N progress  1/1 : Update certificate"
+	echoContent skyBlue "\n progress  1/1 : Update certificate"
 
 	if [[ -d "$HOME/.acme.sh/${currentHost}_ecc" ]] && [[ -f "$HOME/.acme.sh/${currentHost}_ecc/${currentHost}.key" ]] && [[ -f "$HOME/.acme.sh/${currentHost}_ecc/${currentHost}.cer" ]]; then
 		modifyTime=$(stat $HOME/.acme.sh/${currentHost}_ecc/${currentHost}.cer | sed -n '7,6p' | awk '{print $2" "$3" "$4" "$5}')
@@ -1054,7 +1054,7 @@ checkTLStatus() {
 # Install v2ray, specify version
 installV2Ray() {
 	readInstallType
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Install v2ray"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Install v2ray"
 
 	if [[ "${coreInstallType}" != "2" && "${coreInstallType}" != "3" ]]; then
 		if [[ "${selectCoreType}" == "2" ]]; then
@@ -1094,7 +1094,7 @@ installV2Ray() {
 # Install XRay
 installXray() {
 	readInstallType
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Install XRay"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Install XRay"
 
 	if [[ "${coreInstallType}" != "1" ]]; then
 
@@ -1122,7 +1122,7 @@ installXray() {
 
 # Install Trojan-go
 installTrojanGo() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Install Trojan-Go"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Install Trojan-Go"
 
 	if ! ls /etc/v2ray-agent/trojan/ | grep -q trojan-go; then
 
@@ -1148,7 +1148,7 @@ installTrojanGo() {
 
 # V2Ray version management
 v2rayVersionManageMenu() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : V2Ray version management"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : V2Ray version management"
 	if [[ ! -d "/etc/v2ray-agent/v2ray/" ]]; then
 		echoContent red " ---> No installation directory is detected, please perform script installation content"
 		menu
@@ -1191,7 +1191,7 @@ v2rayVersionManageMenu() {
 
 # XRay version management
 xrayVersionManageMenu() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : XRay version management"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : XRay version management"
 	if [[ ! -d "/etc/v2ray-agent/xray/" ]]; then
 		echoContent red " ---> No installation directory is detected, please perform script installation content"
 		menu
@@ -1423,7 +1423,7 @@ updateXray() {
 # Verify that the entire service is available
 checkGFWStatue() {
 	readInstallType
-	echoContent skyBlue "\N progress $1/${totalProgress} : Verify service startup status"
+	echoContent skyBlue "\n progress $1/${totalProgress} : Verify service startup status"
 	if [[ "${coreInstallType}" == "1" ]] && [[ -n $(pgrep -f xray/xray) ]]; then
 		echoContent green " ---> Service starts success"
 	elif [[ "${coreInstallType}" == "2" || "${coreInstallType}" == "3" ]] && [[ -n $(pgrep -f v2ray/v2ray) ]]; then
@@ -1437,7 +1437,7 @@ checkGFWStatue() {
 
 # V2RAY boot
 installV2RayService() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Configuring V2RAY boot"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Configuring V2RAY boot"
 	if [[ -n $(find /bin /usr/bin -name "systemctl") ]]; then
 		rm -rf /etc/systemd/system/v2ray.service
 		touch /etc/systemd/system/v2ray.service
@@ -1470,7 +1470,7 @@ EOF
 
 # XRay boot
 installXrayService() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Configuring XRAY boot self-start"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Configuring XRAY boot self-start"
 	if [[ -n $(find /bin /usr/bin -name "systemctl") ]]; then
 		rm -rf /etc/systemd/system/xray.service
 		touch /etc/systemd/system/xray.service
@@ -1502,7 +1502,7 @@ EOF
 }
 # Trojan boot self-start
 installTrojanService() {
-	echoContent skyBlue "\N progress  $1/${totalProgress} : Configuring Trojan boot self-start"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : Configuring Trojan boot self-start"
 	if [[ -n $(find /bin /usr/bin -name "systemctl") ]]; then
 		rm -rf /etc/systemd/system/trojan-go.service
 		touch /etc/systemd/system/trojan-go.service
@@ -1997,12 +1997,12 @@ EOF
 # initializationXray Trojan XTLS 配置文件
 initXrayFrontingConfig(){
 	if [[ -z "${configPath}" ]]; then
-		echoContent red " ---> 未安装，请使用脚本安装"
+		echoContent red " ---> Not installed, please use the script installation"
 		menu
 		exit 0
 	fi
 	if [[ "${coreInstallType}" != "1" ]];then
-		echoContent red " ---> 未安装可用类型"
+		echoContent red " ---> No available types"
 	fi
 	local xtlsType=
 	if echo ${currentInstallProtocolType} | grep -q trojan; then
@@ -2012,16 +2012,16 @@ initXrayFrontingConfig(){
 
 	fi
 
-	echoContent skyBlue "\n功能 1/${totalProgress} : 前置切换为${xtlsType}"
+	echoContent skyBlue "\n function 1/${totalProgress} : Pre-switching${xtlsType}"
 	echoContent red "\n=============================================================="
-	echoContent yellow "# 注意事项\n"
-	echoContent yellow "会将前置替换为${xtlsType}"
-	echoContent yellow "如果前置是Trojan，查看帐号时则会出现两个Trojan协议的节点，有一个不可用xtls"
-	echoContent yellow "再次执行可切换至上一次的前置\n"
+	echoContent yellow "# Precautions \n"
+	echoContent yellow "Alternative to${xtlsType}"
+	echoContent yellow "If the front is Trojan, two Trojan protocols have nodes, there is an unavailable XTLS"
+	echoContent yellow "Execute it again to switch to the previous front \n"
 
-	echoContent yellow "1.切换至${xtlsType}"
+	echoContent yellow "1.Switch to${xtlsType}"
 	echoContent red "=============================================================="
-	read -r -p "请选择：" selectType
+	read -r -p "please choose:" selectType
 	if [[ "${selectType}" == "1" ]]; then
 
 		if [[ "${xtlsType}" == "Trojan" ]];then
@@ -2053,13 +2053,13 @@ initXrayFrontingConfig(){
 	exit 0;
 }
 
-# 初始化Xray 配置文件
+# Initialize XRAY profile
 initXrayConfig() {
-	echoContent skyBlue "\n进度 $2/${totalProgress} : 初始化Xray配置"
+	echoContent skyBlue "\n progress $2/${totalProgress} : Initialize XRAY configuration"
 	echo
 	local uuid=
 	if [[ -n "${currentUUID}" ]]; then
-		read -r -p "读取到上次安装记录，是否使用上次安装时的UUID ？[y/n]:" historyUUIDStatus
+		read -r -p "Read to the last installation record, is it used in the last installation? UUID ？[y/n]:" historyUUIDStatus
 		if [[ "${historyUUIDStatus}" == "y" ]]; then
 			uuid=${currentUUID}
 			echoContent green "\n ---> 使用成功"
@@ -2069,7 +2069,7 @@ initXrayConfig() {
 	fi
 
 	if [[ -z "${uuid}" ]];then
-		echoContent yellow "请输入自定义UUID[需合法]，[回车]随机UUID"
+		echoContent yellow "Please enter custom UUID [need to legal], [Enter] Random UUID"
 		read -r -p 'UUID:' customUUID
 
 		if [[ -n ${customUUID} ]];then
@@ -2081,7 +2081,7 @@ initXrayConfig() {
 	fi
 
 	if [[ -z "${uuid}" ]]; then
-		echoContent red "\n ---> uuid读取错误，重新生成"
+		echoContent red "\n ---> UUID read error, regenerate"
 		uuid=$(/etc/v2ray-agent/xray/xray uuid)
 	fi
 
@@ -3550,7 +3550,7 @@ installSniffing(){
 
 # WARP diversion
 warpRouting(){
-	echoContent skyBlue "\N progress  $1/${totalProgress} : WARP diversion"
+	echoContent skyBlue "\n progress  $1/${totalProgress} : WARP diversion"
 
 	# Install WARP
 	if [[ -z $(which warp-cli) ]];then
