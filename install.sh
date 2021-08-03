@@ -176,7 +176,7 @@ v2ray_config() {
 			echo
 			echo
 			echo -e "$yellow V2Ray transmission protocol = $cyan${transport[$v2ray_transport-1]}$none"
-			echo "------------------------------------------------ ----------------"
+			echo "-----------------------------------------------------------------"
 			echo
 			break
 			;;
@@ -342,11 +342,11 @@ tls_config() {
 	get_ip
 	echo
 	echo
-	echo -e "$yellow 请将 $magenta$domain$none $yellow 解析到: $cyan$ip$none"
+	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo
-	echo -e "$yellow 请将 $magenta$domain$none $yellow 解析到: $cyan$ip$none"
+	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo
-	echo -e "$yellow 请将 $magenta$domain$none $yellow 解析到: $cyan$ip$none"
+	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo "----------------------------------------------------------------"
 	echo
 
