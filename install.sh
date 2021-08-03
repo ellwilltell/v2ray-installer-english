@@ -343,11 +343,11 @@ tls_config() {
 	get_ip
 	echo
 	echo
-	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
+	echo -e "$yellow please check that $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo
-	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
+	echo -e "$yellow please check that $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo
-	echo -e "$yellow please $magenta$domain$none $yellow resolve to: $cyan$ip$none"
+	echo -e "$yellow please check taht $magenta$domain$none $yellow resolve to: $cyan$ip$none"
 	echo "----------------------------------------------------------------"
 	echo
 
