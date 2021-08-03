@@ -7,8 +7,7 @@
 
 Translated version of :
 
-https://raw.githubusercontent.com/233boy/v2ray/master/install.sh
-
+https://github.com/mack-a/v2ray-agent
   
   
 
