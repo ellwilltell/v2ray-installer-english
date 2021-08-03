@@ -803,7 +803,7 @@ install_v2ray() {
 	else
 		pushd /tmp
 		rm -rf /etc/v2ray/233boy/v2ray
-		git clone https://github.com/233boy/v2ray -b "$_gitbranch" /etc/v2ray/233boy/v2ray --depth=1
+		git clone https://github.com/233boy/v2ray -b "$_gitbranch" /etc/v2ray/v2ray-english/v2ray --depth=1
 		popd
 
 	fi
