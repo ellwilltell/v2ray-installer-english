@@ -453,8 +453,8 @@ path_config_ask() {
 path_config() {
 	echo
 	while :; do
-		echo -e "Please enter the path $none that you want $magenta to use for diversion, for example /233blog, then you only need to enter 233blog"
-		read -p "$(echo -e "(default: [${cyan}233blog$none]):")" path
+		echo -e "Please enter the path $none that you want $magenta to use for diversion, for example /movies, then you only need to enter movies"
+		read -p "$(echo -e "(default: [${cyan}movies$none]):")" path
 		[[ -z $path ]] && path="233blog"
 
 		case $path in
