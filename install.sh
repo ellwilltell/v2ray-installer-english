@@ -71,8 +71,8 @@ fi
 uuid=$(cat /proc/sys/kernel/random/uuid)
 old_id="e55c8d17-2cf3-b21a-bcf1-eeacb011ed79"
 v2ray_server_config="/etc/v2ray/config.json"
-v2ray_client_config="/etc/v2ray/233blog_v2ray_config.json"
-backup="/etc/v2ray/233blog_v2ray_backup.conf"
+v2ray_client_config="/etc/v2ray/v2ray_english_config.json"
+backup="/etc/v2ray/v2ray_english_backup.conf"
 _v2ray_sh="/usr/local/sbin/v2ray"
 systemd=true
 # _test=true
@@ -120,7 +120,7 @@ ciphers=(
 )
 
 _load() {
-	local _dir="/etc/v2ray/233boy/v2ray/src/"
+	local _dir="/etc/v2ray/v2ray-english/v2ray/src/"
 	. "${_dir}$@"
 }
 _sys_timezone() {
@@ -332,7 +332,7 @@ tls_config() {
 	while :; do
 		echo
 		echo -e "Please enter a ${magenta} correct domain name ${none}, it must be correct, and resolves to this machine!"
-		read -p "(for example: 233blog.com): " domain
+		read -p "(for example: example.com): " domain
 		[-z "$domain"] && error && continue
 		echo
 		echo
@@ -617,8 +617,8 @@ shadowsocks_password_config() {
 
 	while :; do
 		echo -e "Please enter the "$yellow"Shadowsocks"$none" password"
-		read -p "$(echo -e "(default password: ${cyan}233blog.com$none)"): " sspass
-		[ -z "$sspass" ] && sspass="233blog.com"
+		read -p "$(echo -e "(default password: ${cyan}example.com$none)"): " sspass
+		[ -z "$sspass" ] && sspass="example.com"
 		case $sspass in
 		*[/$]*)
 			echo
@@ -753,7 +753,7 @@ domain_check() {
 		echo
 		echo -e " Your domain name is currently resolved to: $cyan$test_domain$none"
 		echo
-		echo "Remarks...If your domain name is resolved by Cloudflare...click the icon in Status...make it gray"
+		echo "Remarks...If your domain name is resolved by Cloudflare...click the icon in Status...make it gray $red (DNS only) $none"
 		echo
 		exit 1
 	fi
@@ -794,20 +794,20 @@ install_v2ray() {
 			echo
 			echo -e "$red Oops... the installation failed slightly...$none"
 			echo
-			echo -e " Please make sure you have a complete upload of the V2Ray one-click installation script & management script of 233v2.com to the current $(green)$(pwd) $none directory"
+			echo -e " Please make sure you have a complete upload of the V2Ray one-click installation script & management script of originally: 233v2.com to the current $(green)$(pwd) $none directory"
 			echo
 			exit 1
 		fi
-		mkdir -p /etc/v2ray/233boy/v2ray
-		cp -rf $(pwd)/* /etc/v2ray/233boy/v2ray
+		mkdir -p /etc/v2ray/v2ray-english/v2ray
+		cp -rf $(pwd)/* /etc/v2ray/v2ray-english/v2ray
 	else
 		pushd /tmp
-		git clone https://github.com/233boy/v2ray -b "$_gitbranch" /etc/v2ray/233boy/v2ray --depth=1
+		git clone https://github.com/v2ray-english/v2ray -b "$_gitbranch" /etc/v2ray/v2ray-english/v2ray --depth=1
 		popd
 
 	fi
 
-	if [[ ! -d /etc/v2ray/233boy/v2ray ]]; then
+	if [[ ! -d /etc/v2ray/v2ray-english/v2ray ]]; then
 		echo
 		echo -e "$red Oops... something went wrong with cloning the script repository...$none"
 		echo
@@ -824,8 +824,8 @@ install_v2ray() {
 }
 
 config() {
-	cp -f /etc/v2ray/233boy/v2ray/config/backup.conf $backup
-	cp -f /etc/v2ray/233boy/v2ray/v2ray.sh $_v2ray_sh
+	cp -f /etc/v2ray/v2ray-english/v2ray/config/backup.conf $backup
+	cp -f /etc/v2ray/v2ray-english/v2ray/v2ray.sh $_v2ray_sh
 	chmod +x $_v2ray_sh
 
 	v2ray_id=$uuid
@@ -866,13 +866,13 @@ backup_config() {
 		sed -i "30s/=10000/=$v2ray_dynamic_port_start_input/; 33s/=20000/=$v2ray_dynamic_port_end_input/" $backup
 	fi
 	if [[ $shadowsocks ]]; then
-		sed -i "42s/=/=true/; 45s/=6666/=$ssport/; 48s/=233blog.com/=$sspass/; 51s/=chacha20-ietf/=$ssciphers/" $backup
+		sed -i "42s/=/=true/; 45s/=6666/=$ssport/; 48s/=gcmcon.com/=$sspass/; 51s/=chacha20-ietf/=$ssciphers/" $backup
 	fi
-	[[ $v2ray_transport == [45] || $v2ray_transport == 33 ]] && sed -i "36s/=233blog.com/=$domain/" $backup
+	[[ $v2ray_transport == [45] || $v2ray_transport == 33 ]] && sed -i "36s/=gcmcon.com/=$domain/" $backup
 	[[ $caddy ]] && sed -i "39s/=/=true/" $backup
 	[[ $ban_ad ]] && sed -i "54s/=/=true/" $backup
 	if [[ $is_path ]]; then
-		sed -i "57s/=/=true/; 60s/=233blog/=$path/" $backup
+		sed -i "57s/=/=true/; 60s/=example/=$path/" $backup
 		sed -i "63s#=https://liyafly.com#=$proxy_site#" $backup
 	fi
 }
@@ -917,14 +917,14 @@ show_config_info() {
 }
 
 install() {
-	if [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f $backup && -d /etc/v2ray/233boy/v2ray ]]; then
+	if [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f $backup && -d /etc/v2ray/v2ray-english/v2ray ]]; then
 		echo
 		echo "Big guy...you have already installed V2Ray... no need to reinstall"
 		echo
 		echo -e " $yellow enter ${cyan}v2ray${none} $yellow Can be managed  V2Ray${none}"
 		echo
 		exit 1
-	elif [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f /etc/v2ray/233blog_v2ray_backup.txt && -d /etc/v2ray/233boy/v2ray ]]; then
+	elif [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f /etc/v2ray/v2ray_english_backup.txt && -d /etc/v2ray/v2ray-english/v2ray ]]; then
 		echo
 		echo "  If you need to continue the installation: please uninstall the old version first"
 		echo
@@ -959,7 +959,7 @@ install() {
 }
 uninstall() {
 
-	if [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f $backup && -d /etc/v2ray/233boy/v2ray ]]; then
+	if [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f $backup && -d /etc/v2ray/v2ray-english/v2ray ]]; then
 		. $backup
 		if [[ $mark ]]; then
 			_load uninstall.sh
@@ -969,7 +969,7 @@ uninstall() {
 			echo
 		fi
 
-	elif [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f /etc/v2ray/233blog_v2ray_backup.txt && -d /etc/v2ray/233boy/v2ray ]]; then
+	elif [[ -f /usr/bin/v2ray/v2ray && -f /etc/v2ray/config.json ]] && [[ -f /etc/v2ray/v2ray_english_backup.txt && -d /etc/v2ray/v2ray-english/v2ray ]]; then
 		echo
 		echo -e "$yellow enter ${cyan}v2ray uninstall${none} $yellow to uninstall ${none}"
 		echo
