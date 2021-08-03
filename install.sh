@@ -753,7 +753,7 @@ domain_check() {
 		echo
 		echo -e " Your domain name is currently resolved to: $cyan$test_domain$none"
 		echo
-		echo "Remarks...If your domain name is resolved by Cloudflare...click the icon in Status...make it gray $red (DNS only) $none"
+		echo "Remarks...If your domain name is resolved by Cloudflare...click the icon in Status...make it gray $red DNS only $none"
 		echo
 		exit 1
 	fi
