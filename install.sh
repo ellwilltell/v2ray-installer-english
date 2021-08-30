@@ -39,7 +39,7 @@ checkSystem() {
 		if [[ -f "/etc/centos-release" ]];then
 			centosVersion=$(rpm -q centos-release | awk -F "[-]" '{print $3}' | awk -F "[.]" '{print $1}')
 
-			if [[ -z "${centosVersion}" ]] && grep </etc/centos-release "release 8"; then
+			if [[ -z "${centosVersion}" ]] && grep </etc/centos-release -q -i "release 8"; then
 				centosVersion=8
 			fi
 		fi
@@ -69,7 +69,7 @@ checkSystem() {
 	fi
 
 	if [[ -z ${release} ]]; then
-		echoContent red "\ n This script does not support this system, please feed back the following logs to developers \ n"
+		echoContent red "\n This script does not support this system, please feed back the following logs to developers \ n"
 		echoContent yellow "$(cat /etc/issue)"
 		echoContent yellow "$(cat /proc/version)"
 		exit 0
@@ -176,9 +176,13 @@ initVar() {
 	# pingIPv4=
 	pingIP=
 	pingIPv6=
+	localIP=
 
 	# Integrated Update Certificate Logic No longer use separate scripts--RenewTLS
 	renewTLS=$1
+
+	# Number of attempts after a failed tls installation
+	installTLSCount=
 }
 
 # Detection installation method
@@ -250,10 +254,6 @@ readInstallProtocolType() {
 		fi
 
 	done < <(ls ${configPath} | grep inbounds.json | awk -F "[.]" '{print $1}')
-
-#	if [[ -f "/etc/v2ray-agent/trojan/trojan-go" ]] && [[ -f "/etc/v2ray-agent/trojan/config_full.json" ]]; then
-#		currentInstallProtocolType=${currentInstallProtocolType}'4'
-#	fi
 }
 
 # Check file directory and path path
@@ -527,8 +527,6 @@ installTools() {
 		fi
 	fi
 
-	# todo 关闭防火墙
-
 	if [[ ! -d "$HOME/.acme.sh" ]] || [[ -d "$HOME/.acme.sh" && -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
 		echoContent green " ---> Install acme.sh"
 		curl -s https://get.acme.sh | sh -s >/etc/v2ray-agent/tls/acme.log 2>&1
@@ -547,8 +545,6 @@ installTools() {
 installNginxTools() {
 
 	if [[ "${release}" == "debian" ]]; then
-		# Uninstall the original nginx
-		# sudo apt remove nginx nginx-common nginx-full -y >/dev/null
 		sudo apt install gnupg2 ca-certificates lsb-release -y >/dev/null 2>&1
 		echo "deb http://nginx.org/packages/mainline/debian $(lsb_release -cs) nginx" | sudo tee /etc/apt/sources.list.d/nginx.list >/dev/null 2>&1
 		echo -e "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" | sudo tee /etc/apt/preferences.d/99nginx >/dev/null 2>&1
@@ -558,8 +554,6 @@ installNginxTools() {
 		sudo apt update >/dev/null 2>&1
 
 	elif [[ "${release}" == "ubuntu" ]]; then
-		# Uninstall the original nginx
-		# sudo apt remove nginx nginx-common nginx-full -y >/dev/null
 		sudo apt install gnupg2 ca-certificates lsb-release -y >/dev/null 2>&1
 		echo "deb http://nginx.org/packages/mainline/ubuntu $(lsb_release -cs) nginx" | sudo tee /etc/apt/sources.list.d/nginx.list >/dev/null 2>&1
 		echo -e "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" | sudo tee /etc/apt/preferences.d/99nginx >/dev/null 2>&1
@@ -654,25 +648,33 @@ initTLSNginxConfig() {
 		echoContent red "  Domain name--->"
 		initTLSNginxConfig
 	else
-		# Change setting
-		echoContent green "\n ---> Configuring nginx"
+		# update config
 		touch /etc/nginx/conf.d/alone.conf
-		echo "server {listen 80;listen [::]:80;server_name ${domain};root /usr/share/nginx/html;location ~ /.well-known {allow all;}location /test {return 200 'fjkvymb6len';}}" >/etc/nginx/conf.d/alone.conf
-		# Start Nginx
+		cat <<EOF >/etc/nginx/conf.d/alone.conf
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+    root /usr/share/nginx/html;
+    location ~ /.well-known {
+    	allow all;
+    }
+    location /test {
+    	return 200 'fjkvymb6len';
+    }
+	location /ip {
+		proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header REMOTE-HOST \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+		default_type text/plain;
+		return 200 \$proxy_add_x_forwarded_for;
+	}
+}
+EOF
+		# start nginx
 		handleNginx start
-		echoContent yellow "\n Check if IP is set to current VPS"
 		checkIP
-		# Test nginx
-		echoContent yellow "\n Check if nginx is accessible normally"
-		sleep 0.5
-		domainResult=$(curl -s "${domain}/test" --resolve "${domain}:80:${pingIP}" | grep fjkvymb6len)
-		if [[ -n ${domainResult} ]]; then
-			handleNginx stop
-			echoContent green "\n ---> Nginx configuration success"
-		else
-			echoContent red " ---> Unable to access the server normally, check if the domain name is correct, DNS parsing of the domain name, and whether the firewall settings are correct--->"
-			exit 0
-		fi
 	fi
 }
 
@@ -749,7 +751,7 @@ server {
  		lingering_close always;
  		grpc_read_timeout 1071906480m;
  		grpc_send_timeout 1071906480m;
-		grpc_pass grpc://127.0.0.1:31304;
+		grpc_pass grpc://127.0.0.1:31301;
 	}
 }
 EOF
@@ -814,33 +816,35 @@ EOF
 
 # Check IP
 checkIP() {
-	echoContent skyBlue " ---> Check IPv4"
-	pingIP=$(curl -s -H 'accept:application/dns-json' 'https://cloudflare-dns.com/dns-query?name='${domain}'&type=A' | jq -r ".Answer|.[]|select(.type==1)|.data")
+	echoContent skyBlue "\n ---> Check the domain name IP address"
+	localIP=$(curl -s -m 2 "${domain}/ip")
+	handleNginx stop
+	if [[ -z ${localIP} ]] || ! echo "${localIP}"|sed '1{s/[^(]*(//;s/).*//;q}'|grep -q '\.' && ! echo "${localIP}"|sed '1{s/[^(]*(//;s/).*//;q}'|grep -q ':';then
+		echoContent red "\n ---> The ip of the current domain name is not detected"
+		echoContent yellow " ---> Please check if the domain name is written correctly"
+		echoContent yellow " ---> Please check whether the domain name dns resolution is correct"
+		echoContent yellow " ---> If the resolution is correct, please wait for the dns to take effect, it is expected to take effect within three minutes"
+		echoContent yellow " ---> If the above settings are correct, please try again after reinstalling the pure system"
+		if [[ -n ${localIP} ]];then
+			echoContent yellow " ---> Detecting return value exceptions"
+		fi
+		echoContent red " ---> Please check if the firewall is closed\n"
+		read -r -p "Whether to turn off the firewall via script？[y/n]:" disableFirewallStatus
+		if [[ ${disableFirewallStatus} == "y" ]];then
+			handleFirewall stop
+		fi
 
-	if [[ -z "${pingIP}" ]]; then
-		echoContent skyBlue " ---> Check IPv6"
-		pingIP=$(curl -s -H 'accept:application/dns-json' 'https://cloudflare-dns.com/dns-query?name='${domain}'&type=AAAA' | jq -r ".Answer|.[]|select(.type==28)|.data")
-		pingIPv6=${pingIP}
+		exit 0;
 	fi
 
-	if [[ -n "${pingIP}" ]]; then
-		echo
-		read -r -p "The current domain name IP is [${pingIP}],is it right or not[y/n]？" domainStatus
-		if [[ "${domainStatus}" == "y" ]]; then
-			echoContent green "\n ---> IP confirmation"
-		else
-			echoContent red "\n ---> 1.Check CloudFlare DNS resolution is normal"
-			echoContent red " ---> 2.Check CloudFlare DNS cloud is gray DNS Only \n"
-			exit 0
-		fi
-	else
-		read -r -p "IP query failed, please check if the domain name resolution is correct, do you retry?[y/n]？" retryStatus
-		if [[ "${retryStatus}" == "y" ]]; then
-			checkIP
-		else
-			exit 0
-		fi
+	if echo "${localIP}"|awk -F "[,]" '{print $2}'|grep -q "." || echo "${localIP}"|awk -F "[,]" '{print $2}'|grep -q ":";then
+		echoContent red "\n ---> Multiple ip detected, please confirm whether to turn off the cloudflare proxy"
+		echoContent yellow " ---> Close the cloudflare proxy and wait three minutes before retrying"
+		echoContent yellow " ---> The detected ip is as follows：[${localIP}]"
+		exit 0;
 	fi
+
+	echoContent green " ---> Current domain ip is：[${localIP}]"
 }
 # Install TLS
 installTLS() {
@@ -883,8 +887,15 @@ installTLS() {
 
 		if [[ ! -f "/etc/v2ray-agent/tls/${tlsDomain}.crt" || ! -f "/etc/v2ray-agent/tls/${tlsDomain}.key"  ]] || [[ -z $(cat "/etc/v2ray-agent/tls/${tlsDomain}.key") || -z $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]]; then
 			tail -n 10 /etc/v2ray-agent/tls/acme.log
-			echoContent red " ---> TLS installation failed, please check the Acme log"
-			exit 0
+			if [[ ${installTLSCount} == "1" ]];then
+				echoContent red " ---> TLS installation failed, please check acme logs"
+				exit 0
+			fi
+			echoContent red " ---> TLS installation failed, check the firewall in"
+			handleFirewall stop
+			echoContent yellow " ---> Retry to install the TLS certificate"
+			installTLSCount=1
+			installTLS "$1"
 		fi
 		echoContent green " ---> TLS generation success"
 	else
@@ -1374,51 +1385,6 @@ updateXray() {
 		fi
 	fi
 }
-# 更新Trojan-Go
-#updateTrojanGo() {
-#	echoContent skyBlue "\n进度  $1/${totalProgress} : 更新Trojan-Go"
-#	if [[ ! -d "/etc/v2ray-agent/trojan/" ]]; then
-#		echoContent red " ---> 没有检测到安装目录，请执行脚本安装内容"
-#		menu
-#		exit 0
-#	fi
-#	if find /etc/v2ray-agent/trojan/ | grep -q "trojan-go"; then
-#		version=$(curl -s https://api.github.com/repos/p4gefau1t/trojan-go/releases | jq -r .[0].tag_name)
-#		echoContent green " ---> Trojan-Go版本:${version}"
-#		if [[ -n $(wget --help | grep show-progress) ]]; then
-#			wget -c -q --show-progress -P /etc/v2ray-agent/trojan/ "https://github.com/p4gefau1t/trojan-go/releases/download/${version}/${trojanGoCPUVendor}.zip"
-#		else
-#			wget -c -P /etc/v2ray-agent/trojan/ "https://github.com/p4gefau1t/trojan-go/releases/download/${version}/${trojanGoCPUVendor}.zip" >/dev/null 2>&1
-#		fi
-#		unzip -o /etc/v2ray-agent/trojan/${trojanGoCPUVendor}.zip -d /etc/v2ray-agent/trojan >/dev/null
-#		rm -rf /etc/v2ray-agent/trojan/${trojanGoCPUVendor}.zip
-#		handleTrojanGo stop
-#		handleTrojanGo start
-#	else
-#		echoContent green " ---> 当前Trojan-Go版本:$(/etc/v2ray-agent/trojan/trojan-go --version | awk '{print $2}' | head -1)"
-#		if [[ -n $(/etc/v2ray-agent/trojan/trojan-go --version) ]]; then
-#			version=$(curl -s https://api.github.com/repos/p4gefau1t/trojan-go/releases | jq -r .[0].tag_name)
-#			if [[ "${version}" == "$(/etc/v2ray-agent/trojan/trojan-go --version | awk '{print $2}' | head -1)" ]]; then
-#				read -r -p "当前版本与最新版相同，是否重新安装？[y/n]:" reInstalTrojanGoStatus
-#				if [[ "${reInstalTrojanGoStatus}" == "y" ]]; then
-#					handleTrojanGo stop
-#					rm -rf /etc/v2ray-agent/trojan/trojan-go
-#					updateTrojanGo 1
-#				else
-#					echoContent green " ---> 放弃重新安装"
-#				fi
-#			else
-#				read -r -p "最新版本为：${version}，是否更新？[y/n]：" installTrojanGoStatus
-#				if [[ "${installTrojanGoStatus}" == "y" ]]; then
-#					rm -rf /etc/v2ray-agent/trojan/trojan-go
-#					updateTrojanGo 1
-#				else
-#					echoContent green " ---> 放弃更新"
-#				fi
-#			fi
-#		fi
-#	fi
-#}
 
 # Verify that the entire service is available
 checkGFWStatue() {
@@ -1720,13 +1686,7 @@ EOF
 	# Fall back nginx
 	local fallbacksList='{"dest":31300,"xver":0},{"alpn":"h2","dest":31302,"xver":0}'
 
-#	if echo "${selectCustomInstallType}" | grep -q 4 || [[ "$1" == "all" ]]; then
-#		# 回落trojan-go
-#		fallbacksList='{"dest":31296,"xver":1},{"alpn":"h2","dest":31302,"xver":0}'
-#	fi
-
 if [[ -n $(echo "${selectCustomInstallType}" | grep 4) || "$1" == "all" ]]; then
-#		fallbacksList=${fallbacksList}',{"path":"/'${customPath}'tcp","dest":31298,"xver":1}'
 		fallbacksList='{"dest":31296,"xver":1},{"alpn":"h2","dest":31302,"xver":0}'
 cat <<EOF >/etc/v2ray-agent/v2ray/conf/04_trojan_TCP_inbounds.json
 {
@@ -1794,46 +1754,6 @@ EOF
 EOF
 	fi
 
-	# VMess_TCP
-#	if echo "${selectCustomInstallType}" | grep -q 2 || [[ "$1" == "all" ]]; then
-#		fallbacksList=${fallbacksList}',{"path":"/'${customPath}'tcp","dest":31298,"xver":1}'
-#		cat <<EOF >/etc/v2ray-agent/v2ray/conf/04_VMess_TCP_inbounds.json
-#{
-#"inbounds":[
-#{
-#  "port": 31298,
-#  "listen": "127.0.0.1",
-#  "protocol": "vmess",
-#  "tag":"VMessTCP",
-#  "settings": {
-#    "clients": [
-#      {
-#        "id": "${uuid}",
-#        "alterId": 0,
-#        "email": "${domain}_vmess_tcp"
-#      }
-#    ]
-#  },
-#  "streamSettings": {
-#    "network": "tcp",
-#    "security": "none",
-#    "tcpSettings": {
-#      "acceptProxyProtocol": true,
-#      "header": {
-#        "type": "http",
-#        "request": {
-#          "path": [
-#            "/${customPath}tcp"
-#          ]
-#        }
-#      }
-#    }
-#  }
-#}
-#]
-#}
-#EOF
-#	fi
 
 	# VMess_WS
 	if echo "${selectCustomInstallType}" | grep -q 3 || [[ "$1" == "all" ]]; then
@@ -1842,6 +1762,7 @@ EOF
 {
 "inbounds":[
 {
+  "listen": "127.0.0.1",
   "port": 31299,
   "protocol": "vmess",
   "tag":"VMessWS",
@@ -1870,7 +1791,6 @@ EOF
 	fi
 	# VLESS gRPC
 	if echo "${selectCustomInstallType}" | grep -q 5 || [[ "$1" == "all" ]]; then
-#		fallbacksList=${fallbacksList}',{"alpn":"h2","dest":31301,"xver":0}'
 		cat <<EOF >/etc/v2ray-agent/v2ray/conf/06_VLESS_gRPC_inbounds.json
 {
     "inbounds":[
@@ -1985,16 +1905,9 @@ EOF
 }
 EOF
 	fi
-#
-#	if echo "${selectCustomInstallType}" | grep -q 5 || [[ "$1" == "all" ]];then
-#		echo >/dev/null
-#	elif [[ -f "/etc/v2ray-agent/v2ray/conf/02_VLESS_TCP_inbounds.json" ]] && echo "${selectCustomInstallType}" | grep -q 4;then
-#		# "h2",
-#		sed -i '/\"h2\",/d' $(grep "\"h2\"," -rl /etc/v2ray-agent/v2ray/conf/02_VLESS_TCP_inbounds.json)
-#	fi
 }
 
-# initializationXray Trojan XTLS 配置文件
+# initializationXray Trojan XTLS config
 initXrayFrontingConfig(){
 	if [[ -z "${configPath}" ]]; then
 		echoContent red " ---> Not installed, please use the script installation"
@@ -2273,6 +2186,7 @@ EOF
 {
 "inbounds":[
 {
+  "listen": "127.0.0.1",
   "port": 31299,
   "protocol": "vmess",
   "tag":"VMessWS",
@@ -2301,7 +2215,6 @@ EOF
 	fi
 
 	if echo "${selectCustomInstallType}" | grep -q 5 || [[ "$1" == "all" ]]; then
-#		fallbacksList=${fallbacksList}',{"alpn":"h2","dest":31302,"xver":0}'
 		cat <<EOF >/etc/v2ray-agent/xray/conf/06_VLESS_gRPC_inbounds.json
 {
     "inbounds":[
@@ -2377,12 +2290,6 @@ EOF
 ]
 }
 EOF
-#	if echo "${selectCustomInstallType}" | grep -q 5 || [[ "$1" == "all" ]];then
-#		echo >/dev/null
-#	elif [[ -f "/etc/v2ray-agent/xray/conf/02_VLESS_TCP_inbounds.json" ]] && echo "${selectCustomInstallType}" | grep -q 4;then
-#		# "h2",
-#		sed -i '/\"h2\",/d' $(grep "\"h2\"," -rl /etc/v2ray-agent/xray/conf/02_VLESS_TCP_inbounds.json)
-#	fi
 }
 
 # initialization Trojan-Go Configure
@@ -2424,21 +2331,33 @@ EOF
 
 # customizeCDN IP
 customCDNIP() {
-	echoContent skyBlue "\n schedule $1/${totalProgress} : Add DNS intelligent resolution"
-	echoContent yellow "\n If Cloudflare Self-selected ip Don't know, please choose[n]"
-	echoContent yellow "\n move:104.16.123.96"
-	echoContent yellow " Unicom:hostmonit.com"
-	echoContent yellow " telecommunications:www.digitalocean.com"
+	echoContent skyBlue "\n progress $1/${totalProgress} : Add cloudflare self-selecting CNAME"
+	echoContent red "\n=============================================================="
+	echoContent yellow "# Cautions"
+	echoContent yellow "\n Tutorial Address:"
+	echoContent skyBlue "https://github.com/mack-a/v2ray-agent/blob/master/documents/optimize_V2Ray.md"
+	echoContent red "\n If you do not know about Cloudflare optimization, please do not use"
+	echoContent yellow "\n 1.china Mobile:104.16.123.96"
+	echoContent yellow " 2.china Unicom:www.cloudflare.com"
+	echoContent yellow " 3.china Telecom:www.digitalocean.com"
 	echoContent skyBlue "----------------------------"
-	read -r -p 'use or not？[y/n]:' dnsProxy
-	if [[ "${dnsProxy}" == "y" ]]; then
-		add="domain08.mqcjuc.ml"
-		echoContent green "\n ---> Successful use"
-	else
+	read -r -p "Please choose[Carriage return not used]:" selectCloudflareType
+    case ${selectCloudflareType} in
+    1)
+        add="104.16.123.96"
+        ;;
+    2)
+        add="www.cloudflare.com"
+        ;;
+    3)
+        add="www.digitalocean.com"
+        ;;
+    *)
 		add="${domain}"
-	fi
+		echoContent yellow "\n ---> No use"
+		;;
+    esac
 }
-
 # 通用
 defaultBase64Code() {
 	local type=$1
@@ -2693,18 +2612,6 @@ showAccounts() {
 			done
 		fi
 
-		# VMess TCP
-#		if echo ${currentInstallProtocolType} | grep -q 2; then
-#			echoContent skyBlue "\n================================= VMess TCP TLS  =================================\n"
-#
-#			# cat ${configPath}04_VMess_TCP_inbounds.json | jq .inbounds[0].settings.clients | jq -c '.[]'
-#			jq .inbounds[0].settings.clients ${configPath}04_VMess_TCP_inbounds.json | jq -c '.[]' | while read -r user; do
-#				echoContent skyBlue "\n ---> 帐号：$(echo "${user}" | jq -r .email )_$(echo "${user}" | jq -r .id)"
-#				echo
-#				defaultBase64Code vmesstcp $(echo "${user}" | jq .email) $(echo "${user}" | jq .id) "${currentHost}:${currentPort}" "${currentPath}tcp" "${currentHost}"
-#			done
-#		fi
-
 		# VMess WS
 		if echo ${currentInstallProtocolType} | grep -q 3; then
 			echoContent skyBlue "\n================================ VMess WS TLS CDN ================================\n"
@@ -2930,22 +2837,6 @@ updateV2RayCDN() {
 			else
 				echoContent red " ---> Modify CDN failure"
 			fi
-
-			# trojan
-#			if [[ -d "/etc/v2ray-agent/trojan" ]] && [[ -f "/etc/v2ray-agent/trojan/config_full.json" ]]; then
-#				add=$(jq -r .websocket.add /etc/v2ray-agent/trojan/config_full.json)
-#				if [[ -n ${add} ]]; then
-#					sed -i "s/${add}/${setDomain}/g" $(grep "${add}" -rl /etc/v2ray-agent/trojan/config_full.json)
-#				fi
-#			fi
-
-#			if [[ -d "/etc/v2ray-agent/trojan" ]] && [[ -f "/etc/v2ray-agent/trojan/config_full.json" ]] && [[ $(jq -r .websocket.add /etc/v2ray-agent/trojan/config_full.json) == ${setDomain} ]]; then
-#				echoContent green "\n ---> Trojan CDN修改成功"
-#				handleTrojanGo stop
-#				handleTrojanGo start
-#			elif [[ -d "/etc/v2ray-agent/trojan" ]] && [[ -f "/etc/v2ray-agent/trojan/config_full.json" ]]; then
-#				echoContent red " ---> 修改Trojan CDN失败"
-#			fi
 		fi
 	else
 		echoContent red " ---> No available types"
@@ -3223,7 +3114,23 @@ updateV2RayAgent() {
 	exit 0
 }
 
-# Install BBR
+# Firewall
+handleFirewall(){
+	if systemctl status ufw 2>/dev/null|grep -q "active (exited)" && [[ "$1" == "stop" ]]; then
+		systemctl stop ufw >/dev/null 2>&1
+		systemctl disable ufw >/dev/null 2>&1
+		echoContent green " ---> ufw Close successfully"
+
+	fi
+
+	if systemctl status firewalld 2>/dev/null|grep -q "active (running)" && [[ "$1" == "stop" ]]; then
+		systemctl stop firewalld >/dev/null 2>&1
+		systemctl disable firewalld >/dev/null 2>&1
+		echoContent green " ---> firewalld Close successfully"
+	fi
+}
+
+# install BBR
 bbrInstall() {
 	echoContent red "\n=============================================================="
 	echoContent green "BBR、DDMature works for [YLX2016] with scripts, address [https://github.com/ylx2016/linux-netspeed], please be familiar"
@@ -3550,36 +3457,41 @@ installSniffing(){
 
 # WARP diversion
 warpRouting(){
-	echoContent skyBlue "\n progress  $1/${totalProgress} : WARP diversion"
-
+	echoContent skyBlue "\n   $1/${totalProgress} : WARP diversion"
+	echoContent red "=============================================================="
+	echoContent yellow "# Cautions\n"
+	echoContent yellow "1.The official warp has a bug after several rounds of testing, rebooting will cause warp to fail and not start, there is also a possibility of CPU usage spike"
+	echoContent yellow "2.It can be used normally without rebooting the machine, if you have to use the official warp, it is recommended not to reboot the machine"
+	echoContent yellow "3.Some machines still work normally after reboot"
+	echoContent yellow "4.Uninstall and reinstall if you can't use it after reboot"
 	# Install WARP
 	if [[ -z $(which warp-cli) ]];then
 		echo
-		read -r -p "WARP is not installed, is it installed? ？[y/n]:" installCloudflareWarpStatus
+		read -r -p "WARP not installed, installed or not ？[y/n]:" installCloudflareWarpStatus
 		if [[ "${installCloudflareWarpStatus}" == "y" ]];then
 			installWarp
 		else
-			echoContent yellow " ---> Abandon the installation"
+			echoContent yellow " ---> Abandonment of installation"
 			exit 0
 		fi
 	fi
 
 	echoContent red "\n=============================================================="
-	echoContent yellow "1.Add domain name"
-	echoContent yellow "2.Uninstall WARP diversion"
+	echoContent yellow "1.Add Domain"
+	echoContent yellow "2.Uninstall the WARP diversion"
 	echoContent red "=============================================================="
 	read -r -p "please choose:" warpStatus
 	if [[ "${warpStatus}" == "1" ]]; then
 		echoContent red "=============================================================="
-		echoContent yellow "# Precautions\n"
-		echoContent yellow "1.Rules only support a predefined domain name list[https://github.com/v2fly/domain-list-community]"
+		echoContent yellow "# Cautions\n"
+		echoContent yellow "1.Rules only support predefined domain lists[https://github.com/v2fly/domain-list-community]"
 		echoContent yellow "2.Detailed documentation[https://www.v2fly.org/config/routing.html]"
-		echoContent yellow "3.You can only deliver traffic to WARP, can not be specified as IPv4 or IPv6"
-		echoContent yellow "4.If the kernel starts fail, check the domain name and re-add domain name."
-		echoContent yellow "5.Do not allow special characters, pay attention to the format of comma"
-		echoContent yellow "6.Every time you add it, it is re-added, and the last domain name will not be retained."
-		echoContent yellow "7.Enride example:google,youtube,facebook\n"
-		read -r -p "Please follow the example name of the above:" domainList
+		echoContent yellow "3.You can only divert traffic to warp, you cannot specify ipv4 or ipv6"
+		echoContent yellow "4.If the kernel fails to start, please check the domain name and add it again"
+		echoContent yellow "5.No special characters allowed, note the comma format"
+		echoContent yellow "6.Each time you add it, it is re-added and will not keep the last domain name"
+		echoContent yellow "7.Entry Example:google,youtube,facebook\n"
+		read -r -p "Please enter the domain name according to the example above：" domainList
 
 		if [[ -f "${configPath}09_routing.json" ]];then
 			unInstallRouting warp-socks-out
@@ -3615,6 +3527,9 @@ EOF
 		echoContent green " ---> Added successfully"
 
 	elif [[ "${warpStatus}" == "2" ]]; then
+
+		${removeType} cloudflare-warp >/dev/null 2>&1
+
 		unInstallRouting warp-socks-out
 
 		unInstallOutbounds warp-socks-out
@@ -3630,19 +3545,22 @@ EOF
 streamingToolbox() {
 	echoContent skyBlue "\n function 1/${totalProgress} : Streaming media toolbox"
 	echoContent red "\n=============================================================="
-	echoContent yellow "1.Netflix detection"
-	echoContent yellow "2.Any door floor machine unlock Netflix"
-	echoContent yellow "3.DNS unlock stream"
+#   echoContent yellow "1.Netflix detection"
+	echoContent yellow "1.Any door floor machine unlock Netflix"
+	echoContent yellow "2.DNS unlock stream"
 	read -r -p "please choose:" selectType
 
 	case ${selectType} in
+#	1)
+#		checkNetflix
+#		;;
 	1)
 		checkNetflix
 		;;
-	2)
+	1)
 		dokodemoDoorUnblockNetflix
 		;;
-	3)
+	2)
 		dnsUnlockNetflix
 		;;
 	esac
@@ -4017,8 +3935,6 @@ customV2RayInstall() {
 		initTLSNginxConfig 2
 		installTLS 3
 		handleNginx stop
-		initNginxConfig 4
-		# Random PATH
 		if echo ${selectCustomInstallType} | grep -q 1 || echo ${selectCustomInstallType} | grep -q 3 || echo ${selectCustomInstallType} | grep -q 4; then
 			randomPathFunction 5
 			customCDNIP 6
@@ -4032,18 +3948,6 @@ customV2RayInstall() {
 		installV2RayService 9
 		initV2RayConfig custom 10
 		cleanUp xrayDel
-#		if echo ${selectCustomInstallType} | grep -q 4; then
-#			installTrojanGo 11
-#			installTrojanService 12
-#			initTrojanGoConfig 13
-#			handleTrojanGo stop
-#			handleTrojanGo start
-#		else
-#			# 这里需要删除trojan的服务
-#			handleTrojanGo stop
-#			rm -rf /etc/v2ray-agent/trojan/*
-#			rm -rf /etc/systemd/system/trojan-go.service
-#		fi
 		installCronTLS 14
 		handleV2Ray stop
 		handleV2Ray start
@@ -4080,8 +3984,7 @@ customXrayInstall() {
 		initTLSNginxConfig 2
 		installTLS 3
 		handleNginx stop
-		initNginxConfig 4
-		# Random PATH
+
 		if echo "${selectCustomInstallType}" | grep -q 1 || echo "${selectCustomInstallType}" | grep -q 2 || echo "${selectCustomInstallType}" | grep -q 3 || echo "${selectCustomInstallType}" | grep -q 5; then
 			randomPathFunction 5
 			customCDNIP 6
@@ -4095,20 +3998,6 @@ customXrayInstall() {
 		installXrayService 9
 		initXrayConfig custom 10
 		cleanUp v2rayDel
-		if echo "${selectCustomInstallType}" | grep -q 4; then
-#			installTrojanGo 11
-#			installTrojanService 12
-#			initTrojanGoConfig 13
-#			handleTrojanGo stop
-#			handleTrojanGo start
-			echo
-		else
-			# 这里需要删除trojan的服务
-#			handleTrojanGo stop
-#			rm -rf /etc/v2ray-agent/trojan/*
-#			rm -rf /etc/systemd/system/trojan-go.service
-			echo
-		fi
 
 		installCronTLS 14
 		handleXray stop
@@ -4165,68 +4054,61 @@ selectCoreInstall() {
 v2rayCoreInstall() {
 	cleanUp xrayClean
 	selectCustomInstallType=
-	totalProgress=17
+	totalProgress=13
 	installTools 2
-	# Apply for TLS
+	# Apply for tls
 	initTLSNginxConfig 3
 	installTLS 4
 	handleNginx stop
-	initNginxConfig 5
-	randomPathFunction 6
-	# Install v2ray
-	installV2Ray 7
-	installV2RayService 8
-	customCDNIP 11
-	initV2RayConfig all 12
+    # initNginxConfig 5
+	randomPathFunction 5
+	# Installing V2Ray
+	installV2Ray 6
+	installV2RayService 7
+	customCDNIP 8
+	initV2RayConfig all 9
 	cleanUp xrayDel
-	installCronTLS 14
-	nginxBlog 15
+	installCronTLS 10
+	nginxBlog 11
 	updateRedirectNginxConf
 	handleV2Ray stop
 	sleep 2
 	handleV2Ray start
 	handleNginx start
-	# Account
-	checkGFWStatue 16
-	showAccounts 17
+	# Generate account
+	checkGFWStatue 12
+	showAccounts 13
 }
 
 # xray-core Install
 xrayCoreInstall() {
 	cleanUp v2rayClean
 	selectCustomInstallType=
-	totalProgress=17
+	totalProgress=13
 	installTools 2
-	# Apply for TLS
+	# Apply for tls
 	initTLSNginxConfig 3
 	installTLS 4
 	handleNginx stop
-	initNginxConfig 5
-	randomPathFunction 6
-	# Install XRay
+	randomPathFunction 5
+	# Installing Xray
 	handleV2Ray stop
-	installXray 7
-	installXrayService 8
-#	installTrojanGo 9
-#	installTrojanService 10
-	customCDNIP 11
-	initXrayConfig all 12
+	installXray 6
+	installXrayService 7
+	customCDNIP 8
+	initXrayConfig all 9
 	cleanUp v2rayDel
-#	initTrojanGoConfig 13
-	installCronTLS 14
-	nginxBlog 15
+	installCronTLS 10
+	nginxBlog 11
 	updateRedirectNginxConf
 	handleXray stop
 	sleep 2
 	handleXray start
 
 	handleNginx start
-#	handleTrojanGo stop
-#	sleep 1
-#	handleTrojanGo start
-	# Account
-	checkGFWStatue 16
-	showAccounts 17
+	# Generate account
+	checkGFWStatue 12
+	showAccounts 13
 }
 
 # Core management
@@ -4312,7 +4194,7 @@ menu() {
 	cd "$HOME" || exit
 	echoContent red "\n=============================================================="
 	echoContent green "author：mack-a"
-	echoContent green "current version：v2.5.20"
+	echoContent green "current version：v2.5.28"
 	echoContent green "Github：https://github.com/mack-a/v2ray-agent"
 	echoContent green "describe：Eight-in-one copy script\c"
 	showInstallStatus
@@ -4334,8 +4216,8 @@ menu() {
 	echoContent yellow "5.Replace the camouflage station"
 	echoContent yellow "6.Update certificate"
 	echoContent yellow "7.Replace CDN node"
-	echoContent yellow "8.IPv6Divert"
-	echoContent yellow "9.WARP diversion [not available]"
+	echoContent yellow "8.IPv6 Divert"
+	echoContent yellow "9.WARP diversion"
 	echoContent yellow "10.Stream media tool"
 	echoContent yellow "11.Add a new port"
 	echoContent yellow "12.BT download management"
@@ -4375,9 +4257,9 @@ menu() {
 	8)
 		ipv6Routing 1
 		;;
-#	9)
-#		warpRouting 1
-#		;;
+	9)
+		warpRouting 1
+		;;
 	10)
 		streamingToolbox 1
 		;;
